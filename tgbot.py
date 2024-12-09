@@ -459,3 +459,138 @@ async def handle_message(message: types.Message):
         else:
             await message.answer("Iltimos, joylashuvingizni ulashing.")
 
+elif state == "extended_menu": #Extended Menu uchun
+        if text in menu:
+            category = text
+            user_data[user_id]["state"] = category
+            await message.answer(
+                f"{category} menyusi:",
+                reply_markup=get_items_menu(category)
+            )
+            
+        elif text == "🛒 Order Basket":  # Handle Order Basket here
+            await show_order_basket(user_id, message)
+        elif text == "Ortga":
+            user_data[user_id]["state"] = "main_menu"
+            language = user_data[user_id]["language"]
+            await message.answer("Ortga qaytdingiz.", reply_markup=main_menu[language])
+
+    elif state in menu:
+        category = state
+        if text == "Ortga":
+            user_data[user_id]["state"] = "extended_menu"
+            language = user_data[user_id]["language"]
+            await message.answer("Ortga qaytdingiz.", reply_markup=get_extended_menu(language))
+
+        elif text == "Buyurtmani yakunlash":
+            await total_info(message)
+
+        else:
+        # Handle adding items to the order
+            for item, price in menu[category].items():
+                if text == f"{item} - {price} so'm":
+                    if category not in user_data[user_id]:
+                        user_data[user_id][category] = []
+                    user_data[user_id][category].append(item)
+
+                # Send item photo if available and show inline menu for that specific item
+                    if item in item_photos:
+                        await bot.send_photo(
+                            chat_id=message.chat.id,
+                            photo=item_photos[item],
+                            caption=f"{item} qo'shildi. Narxi: {price} so'm",
+                            reply_markup=get_item_inline_menu(category, item, price, 1)  # Show the inline keyboard for this item
+                        )
+
+                        
+def get_item_inline_menu(category, item, price, quantity):
+    """Generate an inline keyboard for an item."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="➖", callback_data=f"decrease:{category}:{item}"),
+                InlineKeyboardButton(text=f"{quantity}", callback_data="noop"),
+                InlineKeyboardButton(text="➕", callback_data=f"increase:{category}:{item}"),
+            ],
+            [InlineKeyboardButton(text="✅ Add to Order", callback_data=f"add_to_order:{category}:{item}:{price}")]
+        ]
+    )
+    
+async def show_order_basket(user_id, message):
+    """Display the current order basket."""
+    if user_id not in user_data or not any(category in menu and user_data[user_id].get(category) for category in menu):
+        await message.answer("Your basket is empty!")
+        return
+
+    order_details = []
+    total_price = 0
+
+    for category, items in user_data[user_id].items():
+        if category in menu:
+            for item in items:
+                if isinstance(item, tuple) and len(item) == 3:  # Ensure tuple structure
+                    item_name, quantity, cost = item
+                    order_details.append(f"{item_name} x {quantity} = {cost} so'm")
+                    total_price += cost
+
+    if not order_details:
+        await message.answer("Your basket is empty!")
+    else:
+        order_summary = "\n".join(order_details)
+        order_summary += f"\n\nTotal: {total_price} so'm"
+        await message.answer(order_summary)
+
+
+
+
+@dp.callback_query()
+async def handle_callback_query(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+    data = callback_query.data
+    action, category, item = data.split(":")[:3]  # Extract action, category, item
+
+    if action in ["increase", "decrease"]:
+        # Ensure the category exists in user_data
+        if "quantities" not in user_data[user_id]:
+            user_data[user_id]["quantities"] = {}
+
+        if category not in user_data[user_id]["quantities"]:
+            user_data[user_id]["quantities"][category] = {}
+
+        quantities = user_data[user_id]["quantities"][category]
+        current_quantity = quantities.get(item, 1)
+
+        # Increase or decrease the quantity
+        if action == "increase":
+            quantities[item] = current_quantity + 1
+        elif action == "decrease" and current_quantity > 1:
+            quantities[item] = current_quantity - 1
+
+        # Ensure no negative quantities
+        quantities[item] = max(0, quantities[item])
+
+        # Update the inline keyboard with the new quantity
+        if current_quantity != quantities[item]:
+            await callback_query.message.edit_reply_markup(
+                reply_markup=get_item_inline_menu(
+                    category, item, menu[category][item], quantities[item]
+                )
+            )
+
+    elif action == "add_to_order":
+        price = int(data.split(":")[3])
+        quantity = user_data[user_id]["quantities"].get(category, {}).get(item, 1)
+        total_cost = price * quantity
+
+        # Track in the order
+        if category not in user_data[user_id]:
+            user_data[user_id][category] = []
+        user_data[user_id][category].append((item, quantity, total_cost))
+
+        await callback_query.message.answer(f"{item} added to order: {quantity} x {price} so'm")
+        await callback_query.message.delete()
+
+
+
+
+
