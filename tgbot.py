@@ -590,6 +590,62 @@ async def handle_callback_query(callback_query: types.CallbackQuery):
         await callback_query.message.answer(f"{item} added to order: {quantity} x {price} so'm")
         await callback_query.message.delete()
 
+async def total_info(message: types.Message):
+    user_id = message.from_user.id
+    phone = user_data[user_id].get("contact", "No phone provided")
+    location = user_data[user_id].get("location", "No location provided")
+    order_method = "Delivery" if user_data[user_id]["state"] == "share_location_delivery" else "Take Away"
+    
+    # Collect selected items and calculate total cost
+    total_cost = 0
+    ordered_items = []
+    for category, items in user_data[user_id].get("quantities", {}).items():
+        for item, quantity in items.items():
+            if quantity > 0:
+                price = menu[category][item]
+                cost = price * quantity
+                ordered_items.append(f"{item} x {quantity} - {cost} so'm")
+                total_cost += cost
+
+    # Format the order details
+    order_details = "\n".join(ordered_items)
+    order_summary = (
+        f"Buyurtma yakunlandi!\n\n"
+        f"Telefon: {phone}\n"
+        f"Joylashuv: {location}\n"
+        f"Buyurtma turi: {order_method}\n\n"
+        f"Buyurtgan taomlar:\n{order_details}\n\n"
+        f"Jami: {total_cost} so'm\n"
+        f"Sizni yana kutamiz!"
+    )
+
+    # Send the order summary to the user
+    await message.answer(order_summary)
+    user_data[user_id]["state"] = "main_menu"
+    language = user_data[user_id]["language"]
+    await message.answer(
+        "Buyurtmangiz tez orada tayyor bo'ladi. Yana biror narsa buyurtma qilmoqchimisiz?",
+        reply_markup=main_menu[language]
+    )
+    
+    # Send the order summary to the Telegram channel
+    channel_message = (
+        f"Yangi buyurtma!\n\n"
+        f"Telefon: {phone}\n"
+        f"Joylashuv: {location}\n"
+        f"Buyurtma turi: {order_method}\n\n"
+        f"Buyurtgan taomlar:\n{order_details}\n\n"
+        f"Jami: {total_cost} so'm"
+    )
+    await bot.send_message(chat_id=tg_channel, text=channel_message)
+
+
+
+if __name__ == '__main__':
+    asyncio.run(dp.start_polling(bot)) 
+
+
+  # keep the code original and make the code compact by removing unnecessary stuff
 
 
 
