@@ -225,3 +225,237 @@ async def start(message: types.Message):
         "Assalomu alaykum! Taom buyurtma botimizga xush kelibsiz.\nIltimos, tilni tanlang:",
         reply_markup=language_menu
     )
+
+@dp.message()
+async def handle_message(message: types.Message):
+    user_id = message.from_user.id
+    text = message.text
+
+    if user_id not in user_data:
+        await message.answer("Iltimos, /start buyrug'ini yuboring.")
+        return
+
+    state = user_data[user_id].get("state", "language_selection")
+#til tanlashni yozganda
+    if state == "language_selection":
+        if text in ["🇺🇿 O'zbekcha", "🇷🇺 Русский", "🇬🇧 English"]:
+            language_mapping = {
+                "🇺🇿 O'zbekcha": "O'zbekcha",
+                "🇷🇺 Русский": "Русский",
+                "🇬🇧 English": "English"
+            }
+            selected_language = language_mapping[text]
+            user_data[user_id]["language"] = selected_language
+            user_data[user_id]["state"] = "main_menu"
+            await message.answer(
+                f"{selected_language} tili tanlandi.\nEndi menyudan tanlang:",
+                reply_markup=main_menu[selected_language]
+            )
+        else:
+            await message.answer("Iltimos, tilni tanlang:", reply_markup=language_menu) # tugmadan tanlaganda
+
+#Holat Main Menu bo'lganda
+    elif state == "main_menu":
+        language = user_data[user_id]["language"]
+        if text in ["📦 Buyurtma berish", "📦 Сделать заказ", "📦 Place an Order"]:#buyurtma berish tugmasi
+            user_data[user_id]["state"] = "order_method"
+            await message.answer(
+                "Yetkazib berish turini tanlang:", reply_markup=delivery_takeaway_menu
+            )
+        elif text == "📝 Fikr bildirish" or text == "📝 Обратная связь" or text == "📝 Feedback":
+            user_data[user_id]["state"] = "feedback"
+            await message.answer(
+                "Iltimos, fikringizni yozing:", reply_markup=feedback_menu
+            )
+        elif text == "📞 Biz bilan aloqa" or text == "📞 Связаться с нами" or text == "📞 Contact Us":
+            user_data[user_id]["state"] = "contact_us"
+            await message.answer(
+                "Biz bilan bog'lanish uchun telefon raqamimiz: +998777777777", reply_markup=contact_menu
+            )
+        elif text == "👥 Jamoamizga qo'shiling" or text == "👥 Присоединяйтесь к нам" or text == "👥 Join Our Team":
+            user_data[user_id]["state"] = "join_team"
+            await message.answer(
+                "Iltimos, jamoamizga qo'shilish uchun so'rovnomani boshlang:", reply_markup=join_team_menu
+            )
+        elif text == "Ortga":
+            await message.answer("Ortga qaytdingiz.", reply_markup=main_menu[language])
+            
+            
+    elif state == "feedback":
+        if text in ["⭐⭐⭐⭐⭐ 5 Stars", "⭐⭐⭐⭐ 4 Stars", "⭐⭐⭐ 3 Stars", "⭐⭐ 2 Stars", "⭐ 1 Star"]:
+            user_data[user_id]["rating"] = text
+            await message.answer(f"Rating: {text}.\nIltimos, fikringizni yozing:", reply_markup=feedback_menu)
+            user_data[user_id]["state"] = "write_feedback"
+        elif text == "📋 Leave Comments":
+            user_data[user_id]["state"] = "write_feedback"
+            await message.answer("Iltimos, fikringizni yozib qoldiring:", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True))
+        elif text == "📝 Write Feedback":
+            user_data[user_id]["state"] = "write_feedback"
+            await message.answer("Iltimos, fikringizni yozib qoldiring:", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True))
+
+        elif text == "Ortga":
+            language = user_data[user_id]["language"]
+            user_data[user_id]["state"] = "main_menu"
+            await message.answer("Ortga qaytdingiz.", reply_markup=main_menu[language])
+            
+    elif state == "write_feedback":
+        user_data[user_id]["feedback"] = text
+        rating = user_data[user_id].get("rating", "No rating given")
+        category = user_data[user_id].get("category", "No category selected")
+        
+        # Send feedback to the channel with rating and category
+        await bot.send_message(chat_id=tg_channel, text=f"Fikr:\n{rating}\nKategoriya: {category}\n{user_data[user_id]['feedback']}")
+        
+        await message.answer("Fikringiz yuborildi. Rahmat!")
+        user_data[user_id]["state"] = "main_menu"
+        language = user_data[user_id]["language"]
+        await message.answer("Ortga qaytdingiz.", reply_markup=main_menu[language])
+            
+            
+            
+    elif state == "contact_us":
+        if text == "📞 Call Us: +998777777777":
+            await message.answer("Bizning telefon raqamimiz: +998777777777. Iltimos, qo'ng'iroq qiling.")
+        elif text == "📧 Email Us: support@example.com":
+            await message.answer("Bizning elektron pochta manzilimiz: support@example.com.")
+        elif text == "🌐 Visit our Website":
+            await message.answer("Bizning veb-saytimizga tashrif buyuring: https://www.example.com")
+        elif text == "🗓 Business Hours: 9 AM - 6 PM":
+            await message.answer("Bizning ish vaqtlari: 9:00 dan 18:00 gacha.")
+        elif text == "Ortga":
+            language = user_data[user_id]["language"]
+            user_data[user_id]["state"] = "main_menu"
+            await message.answer("Ortga qaytdingiz.", reply_markup=main_menu[language])
+            
+    elif state == "join_team":
+        if text == "📝 Start Application":
+            user_data[user_id]["state"] = "team_application_position"
+            await message.answer("Qaysi pozitsiyada ishlashni istaysiz? Masalan: Delivery Driver, Waiter, etc.")
+        elif text == "Ortga":
+            language = user_data[user_id]["language"]
+            user_data[user_id]["state"] = "main_menu"
+            await message.answer("Ortga qaytdingiz.", reply_markup=main_menu[language])
+
+    elif state == "team_application_position":
+        user_data[user_id]["position"] = text
+        user_data[user_id]["state"] = "team_application_availability"
+        await message.answer("Ishga kirish uchun qachon bo'lishingiz mumkin? Masalan: Full-time, Part-time, etc.")
+
+    elif state == "team_application_availability":
+        user_data[user_id]["availability"] = text
+        user_data[user_id]["state"] = "team_application_location"
+        await message.answer("Iltimos, yashash joyingizni kiriting (shahar yoki hudud):")
+
+    elif state == "team_application_location":
+        user_data[user_id]["location"] = text
+        user_data[user_id]["state"] = "team_application_submit"
+        await message.answer("Arizangizni yuborishdan oldin tekshirib ko'ring:\n"
+                             f"Pozitsiya: {user_data[user_id]['position']}\n"
+                             f"Availability: {user_data[user_id]['availability']}\n"
+                             f"Location: {user_data[user_id]['location']}\n"
+                             "Agar hammasi to'g'ri bo'lsa, 'Yuborish' deb yozing.")
+
+    elif state == "team_application_submit":
+        if text.lower() == "yuborish":
+            # Send application details to the Telegram channel
+            application = f"Yangi ariza:\n\n" \
+                          f"Pozitsiya: {user_data[user_id]['position']}\n" \
+                          f"Availability: {user_data[user_id]['availability']}\n" \
+                          f"Location: {user_data[user_id]['location']}"
+            await bot.send_message(chat_id=tg_channel, text=application)
+            await message.answer("Arizangiz yuborildi. Rahmat!")
+            user_data[user_id]["state"] = "main_menu"
+            language = user_data[user_id]["language"]
+            await message.answer("Yana biror narsa buyurtma qilmoqchimisiz?", reply_markup=main_menu[language])
+
+        elif text == "Ortga":
+            user_data[user_id]["state"] = "main_menu"
+            language = user_data[user_id]["language"]
+            await message.answer("Ortga qaytdingiz.", reply_markup=main_menu[language])
+                
+#order type Delivery
+    elif state == "order_method":
+        if text == "🚚 Delivery":
+            user_data[user_id]["state"] = "enter_contact"
+            await message.answer(
+                "Iltimos, raqamingizni kiriting yoki ulashing:", reply_markup=share_contact_keyboard
+            )
+        elif text == "🏃 Take Away":#Take away
+            user_data[user_id]["state"] = "share_location_takeaway"
+            await message.answer(
+                "Joylashuvingizni jo'nating, yaqin filialni aniqlaymiz:", reply_markup=share_location_keyboard
+            )
+        elif text == "Ortga":
+            language = user_data[user_id]["language"]
+            user_data[user_id]["state"] = "main_menu"
+            await message.answer("Ortga qaytdingiz.", reply_markup=main_menu[language])
+
+    elif state == "enter_contact":#Kontaktni kiritish
+        if message.contact:
+            phone = message.contact.phone_number
+            user_data[user_id]["contact"] = phone
+            user_data[user_id]["state"] = "verify_code"
+            verification_code = random.randint(10000, 99999) #kod
+            user_data[user_id]["verification_code"] = verification_code
+            try:
+                token = get_eskiz_token(email,password)
+                send_sms(phone, token)
+                await message.answer(f"Tasdiqlash kodi: {verification_code}. Iltimos, ushbu kodni kiriting:")
+            except Exception as ex:
+                await message.answer(f"{ex}")
+                
+                
+            
+        elif text == "Ortga": #Ortga
+            user_data[user_id]["state"] = "order_method"
+            await message.answer(
+                "Yetkazib berish turini tanlang:", reply_markup=delivery_takeaway_menu
+            )
+        else:
+            await message.answer(
+                "Iltimos, raqamingizni to'g'ri kiriting yoki ulashing:"
+            )
+
+    elif state == "verify_code": #Kod to'g'ri bo'lsa
+        if text.isdigit() and int(text) == user_data[user_id].get("verification_code"):
+            user_data[user_id]["state"] = "share_location_delivery"
+            await message.answer(
+                "Kod tasdiqlandi! Endi joylashuvingizni jo'nating:", reply_markup=share_location_keyboard
+            )
+        else:
+            await message.answer("Kod noto'g'ri, qayta urinib ko'ring:")#kod noto'g'ri bo'lsa
+
+    elif state == "share_location_delivery":
+        if message.location:
+            user_data[user_id]["location"] = (message.location.latitude, message.location.longitude)
+            user_data[user_id]["state"] = "extended_menu" #Extended menuni ko'rsatadi
+            language = user_data[user_id]["language"]
+            await message.answer(
+                "Siz ro'yxatdan o'tdingiz! Endi buyurtma qilishingiz mumkin.",
+                reply_markup=get_extended_menu(language)
+            )
+        elif text == "Ortga":
+            user_data[user_id]["state"] = "order_method"
+            await message.answer(
+                "Yetkazib berish turini tanlang:", reply_markup=delivery_takeaway_menu
+            )
+        else:
+            await message.answer("Iltimos, joylashuvingizni ulashing.")
+
+    elif state == "share_location_takeaway": #takeaway holat
+        if message.location:
+            user_data[user_id]["location"] = (message.location.latitude, message.location.longitude)
+            user_data[user_id]["state"] = "extended_menu"
+            language = user_data[user_id]["language"]
+            await message.answer(
+                "Siz ro'yxatdan o'tdingiz! Endi buyurtma qilishingiz mumkin.",
+                reply_markup=get_extended_menu(language)
+            )
+        elif text == "Ortga":
+            user_data[user_id]["state"] = "order_method"
+            await message.answer(
+                "Yetkazib berish turini tanlang:", reply_markup=delivery_takeaway_menu
+            )
+        else:
+            await message.answer("Iltimos, joylashuvingizni ulashing.")
+
